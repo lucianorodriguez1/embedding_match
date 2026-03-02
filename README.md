@@ -15,7 +15,7 @@ Este proyecto es un sistema local para registrar talento (habilidades/descripcio
 ### 1. Clonar el repositorio y configurar entorno
 
 ```console
-git clone <url-de-tu-repo>
+git clone <https://github.com/lucianorodriguez1/embedding_match.git>
 cd llm-python
 python -m venv .venv
 source .venv/bin/activate  # En Windows: .venv\Scripts\activate
@@ -27,7 +27,6 @@ Crea un archivo .env en la raíz del proyecto y agrega tu clave API:
 
 ```python
 GEMINIS_API_KEY=tu_clave_api_aqui
-
 ```
 
 ### 3. Levantar la Base de Datos con Docker
@@ -40,7 +39,7 @@ docker-compose up -d --build
 
 Conéctate a tu base de datos (localhost:5432, usuario user, contraseña password, db student_match) usando pgAdmin o tu herramienta favorita y ejecuta el siguiente SQL:
 
-```console
+```sql
 -- Habilitar extensión de vectores
 CREATE EXTENSION IF NOT EXISTS vector;
 
