@@ -16,7 +16,6 @@ Este proyecto es un sistema local para registrar talento (habilidades/descripcio
 
 ```console
 git clone <https://github.com/lucianorodriguez1/embedding_match.git>
-cd llm-python
 python -m venv .venv
 source .venv/bin/activate  # En Windows: .venv\Scripts\activate
 pip install psycopg2 google-generativeai python-dotenv
