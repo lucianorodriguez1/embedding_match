@@ -1,0 +1,20 @@
+[
+  {"id": 1, "titulo": "Pasarela de Pagos", "descripcion": "Buscamos un experto en Python y SQL para crear un microservicio de transacciones seguras."},
+  {"id": 2, "titulo": "Rediseño Ecommerce", "descripcion": "Necesitamos un perfil creativo con manejo de React y herramientas de prototipado como Figma."},
+  {"id": 3, "titulo": "Análisis de Datos Salud", "descripcion": "Proyecto para procesar grandes volúmenes de datos médicos usando Python y herramientas de ML."},
+  {"id": 4, "titulo": "App de Fitness Personalizada", "descripcion": "Desarrollo de una app móvil con seguimiento de rutinas y recomendaciones usando IA."},
+  {"id": 5, "titulo": "Monitor de Redes Sociales", "descripcion": "Herramienta para analizar tendencias y sentimientos en Twitter y Facebook usando NLP."},
+  {"id": 6, "titulo": "Gestión de Inventario Inteligente", "descripcion": "Sistema para optimizar el stock en tiempo real con algoritmos de predicción."},
+  {"id": 7, "titulo": "Automatización de Facturación", "descripcion": "Microservicio para generar y enviar facturas electrónicas integrando APIs externas."},
+  {"id": 8, "titulo": "Plataforma de Cursos Online", "descripcion": "Desarrollo de plataforma con recomendador de cursos personalizado y análisis de progreso."},
+  {"id": 9, "titulo": "Chatbot para Recursos Humanos", "descripcion": "Bot que responde preguntas frecuentes sobre beneficios, licencias y procesos internos."},
+  {"id": 10, "titulo": "Sistema de Reservas para Restaurantes", "descripcion": "Webapp para gestionar reservas, disponibilidad y preferencias de clientes."},
+  {"id": 11, "titulo": "Control de Calidad en Producción", "descripcion": "Solución para detectar defectos en productos usando visión computacional."},
+  {"id": 12, "titulo": "Gestor de Tareas Colaborativo", "descripcion": "Aplicación para equipos con tableros Kanban y notificaciones inteligentes."},
+  {"id": 13, "titulo": "Predicción de Demanda Turística", "descripcion": "Modelo de ML para anticipar picos de demanda en destinos turísticos."},
+  {"id": 14, "titulo": "Asistente Legal Automatizado", "descripcion": "Sistema que ayuda a redactar contratos y responder consultas legales básicas."},
+  {"id": 15, "titulo": "Optimización de Campañas Publicitarias", "descripcion": "Herramienta para ajustar presupuestos y segmentación en tiempo real usando datos históricos."},
+  {"id": 16, "titulo": "Plataforma de Donaciones Solidarias", "descripcion": "Webapp para conectar donantes con ONGs y gestionar campañas solidarias."},
+  {"id": 17, "titulo": "Sistema de Encuestas Inteligentes", "descripcion": "Generador de encuestas dinámicas con análisis automático de resultados."},
+  {"id": 18, "titulo": "Gestión de Turnos Médicos", "descripcion": "App para reservar, modificar y cancelar turnos médicos con recordatorios automáticos."}
+]

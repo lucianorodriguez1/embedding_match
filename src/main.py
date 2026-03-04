@@ -3,13 +3,15 @@ from psycopg2.extras import execute_values
 import google.generativeai as genai
 import json
 import os
-from dotenv import load_dotenv # 1. Importar la librería
+from dotenv import load_dotenv 
+
+# 1. Importar la librería
 
 # 2. Cargar las variables del archivo .env
 load_dotenv()
+
 # --- CONFIGURACIÓN ---
 # IMPORTANTE: Asegúrate de tener esta variable de entorno configurada
-# o reemplaza os.getenv(...) por tu API KEY real entre comillas.
 GOOGLE_API_KEY = os.getenv("GEMINIS_API_KEY") 
 DB_CONFIG = {
     "host": "localhost",
@@ -21,106 +23,145 @@ DB_CONFIG = {
 
 genai.configure(api_key=GOOGLE_API_KEY)
 
+# --- TRACKING DE RECURSOS ---
+stats = {"total_tokens": 0, "api_calls": 0}
+
+
+def registrar_metricas(texto):
+    global stats
+    # Estimación: Gemini usa BPE, aprox 1 token cada 4 caracteres
+    tokens = len(texto) // 4 
+    stats["api_calls"] += 1
+    stats["total_tokens"] += tokens
+    return tokens
+
 # --- FUNCIONES ---
 def obtener_conexion():
     return psycopg2.connect(**DB_CONFIG)
 
 def generar_embedding(texto):
-    """Convierte texto en un vector numérico usando Gemini"""
+    registrar_metricas(texto)
     result = genai.embed_content(
         model="models/gemini-embedding-001",
         content=texto
     )
     return result['embedding']
 
-def registrar_alumno(nombre, habilidades, descripcion):
-    """Guarda al alumno y sus habilidades/descripción en vector en Postgres local"""
-    # JUNTAMOS HABILIDADES Y DESCRIPCIÓN PARA MEJOR CONTEXTO
+
+def registrar_alumno(dni, nombre, habilidades, descripcion):
     texto_completo = f"Habilidades: {habilidades}. Descripción: {descripcion}"
-    
     embedding = generar_embedding(texto_completo)
     
     conn = obtener_conexion()
     cur = conn.cursor()
-    
-    query = """
-    INSERT INTO alumnos (nombre, habilidades, descripcion, habilidades_vector)
-    VALUES (%s, %s, %s, %s)
-    """
-    cur.execute(query, (nombre, habilidades, descripcion, embedding))
-    conn.commit()
-    cur.close()
-    conn.close()
-    print(f"Alumno {nombre} registrado localmente con contexto completo.")
+    try:
+        # Usamos DNI para el ON CONFLICT
+        query = """
+        INSERT INTO alumnos (dni, nombre, habilidades, descripcion, habilidades_vector)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (dni) DO NOTHING;
+        """
+        cur.execute(query, (dni, nombre, habilidades, descripcion, embedding))
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
 
 def buscar_candidatos(proyecto_descripcion):
-    """Busca candidatos usando similitud vectorial en Postgres local"""
     embedding_proyecto = generar_embedding(proyecto_descripcion)
     
     conn = obtener_conexion()
     cur = conn.cursor()
+    try:
+        query = """
+        SELECT nombre, habilidades, 1 - (habilidades_vector <=> %s::vector) AS similitud
+        FROM alumnos
+        ORDER BY similitud DESC LIMIT 5;
+        """
+        cur.execute(query, (embedding_proyecto,))
+        resultados = cur.fetchall()
+        return resultados # Retornamos los datos
+    finally:
+        # IMPORTANTE: Cerramos SIEMPRE, incluso si hay error
+        cur.close()
+        conn.close()
+
+def cargar_desde_json():
+    """Carga alumnos y proyectos usando rutas relativas al script"""
+    # Obtenemos la carpeta donde está main.py (src/)
+    base_path = os.path.dirname(__file__) 
+    # Construimos la ruta hacia la carpeta mocks
+    mocks_path = os.path.join(base_path, 'mocks')
     
-    # Similitud del coseno: 1 - (vector <=> embedding)
-    query = """
-    SELECT nombre, habilidades, descripcion,
-           1 - (habilidades_vector <=> %s::vector) AS similitud
-    FROM alumnos
-    ORDER BY similitud DESC
-    LIMIT 5;
-    """
-    cur.execute(query, (embedding_proyecto,))
-    resultados = cur.fetchall()
+    ruta_estudiantes = os.path.join(mocks_path, 'students.json')
+    ruta_proyectos = os.path.join(mocks_path, 'projects.json')
+
+    # 1. Cargar Alumnos
+    if os.path.exists(ruta_estudiantes):
+        with open(ruta_estudiantes, 'r', encoding='utf-8') as f:
+            alumnos = json.load(f)
+            for a in alumnos:
+                registrar_alumno(a['dni'], a['nombre'], a['habilidades'], a['descripcion'])
+        print(f"✅ Se procesaron {len(alumnos)} alumnos del JSON.")
+    else:
+        print(f"❌ Error: No se encontró {ruta_estudiantes}")
+
+    # 2. Retornar Proyectos para probar
+    if os.path.exists(ruta_proyectos):
+        with open(ruta_proyectos, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    else:
+        print(f"❌ Error: No se encontró {ruta_proyectos}")
     
-    cur.close()
-    conn.close()
-    return resultados
+    return []
 
 
-# --- EJECUCIÓN (Ejemplos Completos) ---
+   # --- EJECUCIÓN ---
 if __name__ == "__main__":
-    # 1. Registrar alumnos (SOLO EJECUTAR ESTO UNA VEZ)
-    print("Registrando alumnos...")
+    print("🚀 Iniciando sistema Student Match...")
     
-    registrar_alumno(
-        "Juan", 
-        "Python, Django, SQL, PostgreSQL", 
-        "Desarrollador Backend con 2 años de experiencia en Fintech buscando proyectos desafiantes en sistemas de pago."
-    )
+    # 1. Cargar datos de prueba (Mocks)
+    proyectos_prueba = cargar_desde_json()
     
-    registrar_alumno(
-        "Maria", 
-        "Figma, React, UX, UI", 
-        "Diseñadora frontend enfocada en usabilidad y accesibilidad web. Experta en crear interfaces intuitivas."
-    )
+    # 2. Ejecutar búsqueda para cada proyecto del JSON
+    print("\n--- EJECUTANDO PRUEBAS DE MATCHING ---")
     
-    registrar_alumno(
-        "Pedro", 
-        "Node.js, Express, MongoDB", 
-        "Desarrollador Fullstack junior con interés en crear APIs rápidas y escalables usando tecnologías modernas."
-    )
-    
-    registrar_alumno(
-        "Ana", 
-        "Python, FastApi, Docker, Kubernetes", 
-        "Ingeniera DevOps con sólida experiencia en backend Python y despliegue de microservicios en la nube."
-    )
-    
-    registrar_alumno(
-        "Luis", 
-        "React, Angular, TypeScript", 
-        "Desarrollador Frontend Senior con 5 años de experiencia liderando equipos técnicos."
-    )
-    
-    print("Alumnos registrados.\n")
+    for proy in proyectos_prueba:
+        print(f"\n🔍 Proyecto: {proy['titulo']}")
+        print(f"📄 Requerimientos: {proy['descripcion'][:80]}...")
+        
+        candidatos = buscar_candidatos(proy['descripcion'])
+        
+        print(f"🏆 Top 3 Candidatos:")
+        for c in candidatos[:3]: # Mostramos los 3 mejores
+            # c[0]: nombre, c[1]: habilidades, c[2]: similitud
+            print(f"  - {c[0]} (Similitud: {c[2]:.2%}) | Skills: {c[1]}")
 
-    # 2. Buscar candidatos para un proyecto complejo
-    print("Buscando candidatos para el proyecto...")
-    proyecto = "Buscamos desarrollador Backend experto en Python para microservicio de transacciones financieras. Necesitamos conocimientos en SQL y despliegue en contenedores."
-    
-    candidatos = buscar_candidatos(proyecto)
-    
-    print(f"\n--- Resultados del Proyecto: '{proyecto}' ---")
-    print("Candidatos encontrados (Nombre, Similitud):")
-    for c in candidatos:
-        # Imprimimos nombre y similitud (c[0] es nombre, c[3] es similitud)
-        print(f"- {c[0]} (Similitud: {c[3]:.2f})")
+    # 3. Mostrar límites del modelo
+    print("\n--- LÍMITES DEL MODELO GEMINI EMBEDDING 1 ---")
+    print("Tipo de Límite                Valor Máximo")
+    print("Tokens por Petición Individual 2,048 tokens")
+    print("Tokens por Minuto (TPM)        30,000 tokens")
+    print("Solicitudes por Minuto (RPM)   100 solicitudes")
+    print("Solicitudes por Día (RPD)      1,000 solicitudes")
+    print("Puedes consultar estas métricas y límites para evitar errores de cuota o sobrecarga.")
+
+    # 4. Mostrar Métricas Finales
+    print("\n" + "="*30)
+    print("📊 MÉTRICAS DE CONSUMO API")
+    print(f"Llamadas totales: {stats['api_calls']}")
+    print(f"Tokens estimados: {stats['total_tokens']}")
+    # Los embeddings de Gemini son gratuitos en el plan básico (hasta 1500 RPM)
+    print("Costo real estimado: $0.00 USD")
+    print("="*30)
+
+# --- LÍMITES DEL MODELO GEMINI EMBEDDING 1 ---
+# Estos son los límites oficiales para el modelo de vectores usado en este sistema:
+#
+# Tipo de Límite                Valor Máximo
+# Tokens por Petición Individual 2,048 tokens
+# Tokens por Minuto (TPM)        30,000 tokens
+# Solicitudes por Minuto (RPM)   100 solicitudes
+# Solicitudes por Día (RPD)      1,000 solicitudes
+
+# Puedes consultar estas métricas y límites para evitar errores de cuota o sobrecarga.
