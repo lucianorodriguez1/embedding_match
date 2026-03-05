@@ -1,58 +1,97 @@
 import psycopg2
 from psycopg2.extras import execute_values
-import google.generativeai as genai
 import json
 import os
-from dotenv import load_dotenv # 1. Importar la librería
+import requests
+from dotenv import load_dotenv 
+
 
 # 2. Cargar las variables del archivo .env
-load_dotenv()
+load_dotenv(override=True)
 # --- CONFIGURACIÓN ---
-# IMPORTANTE: Asegúrate de tener esta variable de entorno configurada
+# IMPORTANTE: Asegurate de tener esta variable de entorno configurada
 # o reemplaza os.getenv(...) por tu API KEY real entre comillas.
-GOOGLE_API_KEY = os.getenv("GEMINIS_API_KEY") 
+HF_KEYS = [
+    os.getenv("HF_KEY_1"),
+    os.getenv("HF_KEY_2"),
+    os.getenv("HF_KEY_3")
+]
+# Filtramos las llaves que estén vacías en .env(por si solo se pusieron 1 o 2)
+HF_KEYS = [key for key in HF_KEYS if key]
+
+# Modelo elegido: all-MiniLM-L6-v2 
+MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
+API_URL = f"https://router.huggingface.co/hf-inference/models/{MODEL_ID}/pipeline/feature-extraction"
+
 DB_CONFIG = {
-    "host": "localhost",
+    "host": "127.0.0.1",
     "database": "student_match",
     "user": "user",
     "password": "password",
-    "port": "5432"
+    "port": "5433"
 }
 
-genai.configure(api_key=GOOGLE_API_KEY)
-
-# --- FUNCIONES ---
 def obtener_conexion():
     return psycopg2.connect(**DB_CONFIG)
 
 def generar_embedding(texto):
-    """Convierte texto en un vector numérico usando Gemini"""
-    result = genai.embed_content(
-        model="models/gemini-embedding-001",
-        content=texto
-    )
-    return result['embedding']
+    """
+    Intenta generar el vector iterando por las API keys de Hugging Face.
+    """
+    if not HF_KEYS:
+        raise ValueError("No hay API Keys de Hugging Face configuradas en el .env")
+
+    for indice, key in enumerate(HF_KEYS):
+        headers = {"Authorization": f"Bearer {key}"}
+        payload = {"inputs": texto}
+        
+        try:
+            print(f"Intentando con Llave {indice + 1}...")
+            response = requests.post(API_URL, headers=headers, json=payload)
+            
+            # Si el código es 200, todo salió perfecto
+            if response.status_code == 200:
+                return response.json()
+                
+            # Si es 429 (Too Many Requests) o 503 (Model Loading/Saturado), saltamos
+            elif response.status_code in [429, 503]:
+                print(f"⚠️ Llave {indice + 1} saturada o sin tokens (Error {response.status_code}).")
+                continue # Pasa a la siguiente llave en el for loop
+            else:
+                print(f"Error inesperado con la Llave {indice + 1}: {response.text}")
+                continue
+                
+        except Exception as e:
+            print(f"Fallo de conexión en la Llave {indice + 1}: {e}")
+            continue
+            
+    # Si el bucle termina y no retornó nada, todas las llaves fallaron
+    raise Exception("🚨 Todas las llaves del carrusel fallaron o están sin límite.")
 
 def registrar_alumno(nombre, habilidades, descripcion):
-    """Guarda al alumno y sus habilidades/descripción en vector en Postgres local"""
-    # JUNTAMOS HABILIDADES Y DESCRIPCIÓN PARA MEJOR CONTEXTO
+    print(f"\nRegistrando a {nombre}...")
     texto_completo = f"Habilidades: {habilidades}. Descripción: {descripcion}"
     
-    embedding = generar_embedding(texto_completo)
-    
-    conn = obtener_conexion()
-    cur = conn.cursor()
-    
-    query = """
-    INSERT INTO alumnos (nombre, habilidades, descripcion, habilidades_vector)
-    VALUES (%s, %s, %s, %s)
-    """
-    cur.execute(query, (nombre, habilidades, descripcion, embedding))
-    conn.commit()
-    cur.close()
-    conn.close()
-    print(f"Alumno {nombre} registrado localmente con contexto completo.")
-
+    try:
+        embedding = generar_embedding(texto_completo)
+        
+        conn = obtener_conexion()
+        cur = conn.cursor()
+        
+        query = """
+            INSERT INTO alumnos (nombre, habilidades, descripcion, habilidades_vector)
+            VALUES (%s, %s, %s, %s)
+        """
+        cur.execute(query, (nombre, habilidades, descripcion, embedding))
+        conn.commit()
+        print(f"✅ ¡{nombre} registrado exitosamente!")
+        
+    except Exception as e:
+        print(f"❌ Error al registrar: {e}")
+    finally:
+        if 'cur' in locals(): cur.close()
+        if 'conn' in locals(): conn.close()
+        
 def buscar_candidatos(proyecto_descripcion):
     """Busca candidatos usando similitud vectorial en Postgres local"""
     embedding_proyecto = generar_embedding(proyecto_descripcion)
