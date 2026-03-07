@@ -1,13 +1,17 @@
-
-
 -- Habilitar extensión de vectores
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- Crear tabla con múltiples columnas vectoriales para diferentes modelos de ia 
-CREATE TABLE alumnos (
-  id SERIAL PRIMARY KEY,
-  nombre TEXT NOT NULL,
-  habilidades TEXT,
-  descripcion TEXT,
-  gemini_vector VECTOR(3072),   -
+CREATE TABLE IF NOT EXISTS alumnos (
+    dni VARCHAR(20) PRIMARY KEY,
+    nombre VARCHAR(100),
+    habilidades TEXT,
+    descripcion TEXT,
+    habilidades_vector vector(384) 
+);
+
+CREATE TABLE IF NOT EXISTS proyectos (
+    id SERIAL PRIMARY KEY,
+    titulo VARCHAR(200) UNIQUE,
+    descripcion TEXT,
+    descripcion_vector vector(384)
 );
